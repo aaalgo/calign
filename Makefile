@@ -17,9 +17,9 @@ PROGS = calign-fit calign-apply
 
 all:	check $(PROGS)
 
-calign-fit:	calign-fit.o dicom.o
+calign-fit:	calign-fit.o dicom.o image-io.o
 
-calign-apply:	calign-apply.o dicom.o
+calign-apply:	calign-apply.o dicom.o image-io.o
 
 dicom.o:	dicom.dic
 	objcopy -I binary -B i386:x86-64 -O elf64-x86-64 $^ $@

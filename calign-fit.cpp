@@ -10,35 +10,8 @@
 #include <opencv2/opencv.hpp>
 #include <glog/logging.h>
 #include "calign.h"
+#include "image-io.h"
 
-void load_dicom (std::string const &path, cv::Mat *image) {
-    DicomImage *dcm = new DicomImage(path.c_str());
-    CHECK(dcm) << "fail to new DicomImage";
-    CHECK(dcm->getStatus() == EIS_Normal) << "fail to load dcm image";
-    CHECK(dcm->isMonochrome()) << " only monochrome data supported.";
-    auto depth = dcm->getDepth();
-    //LOG(INFO) << "depth: " << depth;
-    CHECK((depth <= 16) || (depth > 8)) << " only 12/16-bit data supported but " << dcm->getDepth() << " found.";
-    CHECK(dcm->getFrameCount() == 1) << " only single-framed dcm supported.";
-    cv::Mat raw(dcm->getHeight(), dcm->getWidth(), CV_16U);
-    dcm->getOutputData(raw.ptr<uint16_t>(0), raw.total() * sizeof(uint16_t), 16);
-    if (depth == 12) {
-        raw *= 16;
-    }
-    delete dcm;
-    *image = raw;
-}
-
-cv::Mat load_image (std::string const &path) {
-    cv::Mat im = cv::imread(path, -1);
-    if (im.total() == 0) {
-        load_dicom(path, &im);
-    }
-    CHECK(im.total());
-    CHECK(im.type() == CV_16U);
-    CHECK(im.isContinuous());
-    return im;
-}
 
 
 namespace calign {
@@ -46,6 +19,9 @@ namespace calign {
 
     class Histogram: public vector<uint16_t> {
     public:
+        // Sample pixels from a list of images, at most max_image pixels from
+        // each image.
+        // Then sort all the pixels.
         Histogram (vector<string> const &files, size_t max_image = 100000) {
             reserve(files.size() * max_image);
             boost::progress_display progress(files.size(), cout);
@@ -114,9 +90,6 @@ namespace calign {
 
 using namespace std;
 namespace fs = boost::filesystem;
-extern char _binary_dicom_dic_start;
-extern char _binary_dicom_dic_end;
-
 
 void load_list (fs::path const &path, vector<string> *list) {
     fs::ifstream is(path);
@@ -128,8 +101,8 @@ void load_list (fs::path const &path, vector<string> *list) {
 }
 
 int main (int argc, char *argv[]) {
-    fs::path from_list;
-    fs::path to_list;
+    fs::path from_path;
+    fs::path to_path;
     fs::path model_path;
     {
         int verbose;
@@ -137,8 +110,8 @@ int main (int argc, char *argv[]) {
         po::options_description desc_visible("Allowed options");
         desc_visible.add_options()
             ("help,h", "produce help message.")
-            ("from", po::value(&from_list), "")
-            ("to", po::value(&to_list), "")
+            ("from", po::value(&from_path), "")
+            ("to", po::value(&to_path), "")
             ("model", po::value(&model_path), "")
             ;
 
@@ -155,36 +128,19 @@ int main (int argc, char *argv[]) {
                          options(desc).positional(p).run(), vm);
         po::notify(vm);
 
-        if (vm.count("help") || from_list.empty() || to_list.empty() || model_path.empty()) {
+        if (vm.count("help") || from_path.empty() || to_path.empty() || model_path.empty()) {
             cout << "Usage:" << endl;
             cout << desc;
             cout << endl;
             return 0;
         }
     }
-    do {   // setup dicom 
-        char *env = getenv("DCMDICTPATH");
-        if (env && strlen(env)) {
-            if (fs::exists(env)) {
-                LOG(INFO) << "using env DCMDICTPATH";
-                break;
-            }
-            LOG(WARNING) << "DCMDICTPATH " << env << " not found";
-        }
-        fs::path home_dir = fs::path(argv[0]).parent_path();
-        fs::path def = home_dir / fs::path("dicom.dic");
-        if (!fs::exists(def)) {
-            LOG(WARNING) << "Generating dicom.dic";
-            fs::ofstream os(def);
-            os.write(&_binary_dicom_dic_start, (&_binary_dicom_dic_end-&_binary_dicom_dic_start));
-        }
-        setenv("DCMDICTPATH", def.native().c_str(), 1);
-    } while (false);
+    setup_dicom(argv[0]);
 
     vector<string> from;
     vector<string> to;
-    load_list(from_list, &from);
-    load_list(to_list, &to);
+    load_list(from_path, &from);
+    load_list(to_path, &to);
     calign::CAlign align;
     align.fit(from, to);
     align.save(model_path.native());
