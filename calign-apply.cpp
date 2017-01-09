@@ -1,8 +1,5 @@
 #include <iostream>
 #include <stdexcept>
-#include <parallel/algorithm>
-#include <dcmtk/dcmdata/dctk.h>
-#include <dcmtk/dcmimgle/dcmimage.h>
 #include <boost/filesystem.hpp>
 #include <boost/program_options.hpp>
 #include <boost/progress.hpp>

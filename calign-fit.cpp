@@ -1,13 +1,9 @@
 #include <iostream>
 #include <stdexcept>
 #include <parallel/algorithm>
-#include <dcmtk/dcmdata/dctk.h>
-#include <dcmtk/dcmimgle/dcmimage.h>
 #include <boost/filesystem.hpp>
-#include <boost/filesystem/fstream.hpp>
 #include <boost/program_options.hpp>
 #include <boost/progress.hpp>
-#include <opencv2/opencv.hpp>
 #include <glog/logging.h>
 #include "calign.h"
 #include "image-io.h"
